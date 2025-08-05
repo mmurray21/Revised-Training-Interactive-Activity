@@ -241,6 +241,12 @@
             background: #fdeaea;
         }
         
+        .match-item.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #f5f5f5;
+        }
+        
         /* Sorting Game */
         .sorting-container {
             margin: 20px 0;
@@ -599,7 +605,7 @@
                     </div>
                     
                     <div style="text-align: center; margin-top: 30px;">
-                        <button class="btn btn-primary" onclick="goHome()">Play Again</button>
+                        <button class="btn btn-primary" onclick="goHome()">Back to Games</button>
                         <button class="btn btn-success" onclick="saveResults()">Save My Score</button>
                     </div>
                 </div>
@@ -813,7 +819,9 @@
             score: 0,
             currentGame: null,
             timeLeft: 60,
-            quickMatchIndex: 0
+            quickMatchIndex: 0,
+            attempts: new Map(), // Track attempts per question
+            maxAttempts: 2
         };
         
         // Local Storage for scores
@@ -864,6 +872,18 @@
         function goHome() {
             showScreen('homeScreen');
             resetGameState();
+            
+            // Reset headers back to default
+            const termsHeader = document.querySelector('.matching-container .terms-column h3');
+            const defsHeader = document.querySelector('.matching-container .definitions-column h3');
+            if (termsHeader) termsHeader.textContent = 'Terms';
+            if (defsHeader) defsHeader.textContent = 'Definitions';
+            
+            // Show the final score section when coming from a completed game
+            const finalScoreDiv = document.querySelector('.final-score');
+            if (finalScoreDiv) {
+                finalScoreDiv.style.display = 'block';
+            }
         }
         
         function resetGameState() {
@@ -874,7 +894,9 @@
                 score: 0,
                 currentGame: null,
                 timeLeft: 60,
-                quickMatchIndex: 0
+                quickMatchIndex: 0,
+                attempts: new Map(),
+                maxAttempts: 2
             };
         }
         
@@ -962,6 +984,9 @@
                 const termElement = document.querySelector(`[data-term="${gameState.selectedTerm}"]`);
                 const defElement = document.querySelector(`.definitions-column [data-term="${gameState.selectedDefinition}"]`);
                 
+                // Create unique key for this term-definition pair
+                const attemptKey = `${gameState.selectedTerm}-${gameState.selectedDefinition}`;
+                
                 if (gameState.selectedTerm === gameState.selectedDefinition) {
                     // Correct match
                     termElement.classList.remove('selected');
@@ -975,14 +1000,31 @@
                     termElement.onclick = null;
                     defElement.onclick = null;
                 } else {
-                    // Incorrect match
+                    // Incorrect match - track attempts
+                    const currentAttempts = gameState.attempts.get(attemptKey) || 0;
+                    gameState.attempts.set(attemptKey, currentAttempts + 1);
+                    
                     termElement.classList.add('incorrect');
                     defElement.classList.add('incorrect');
                     
-                    setTimeout(() => {
-                        termElement.classList.remove('incorrect', 'selected');
-                        defElement.classList.remove('incorrect', 'selected');
-                    }, 1000);
+                    if (currentAttempts + 1 >= gameState.maxAttempts) {
+                        // Max attempts reached - disable these items
+                        setTimeout(() => {
+                            termElement.classList.remove('incorrect', 'selected');
+                            defElement.classList.remove('incorrect', 'selected');
+                            termElement.classList.add('disabled');
+                            defElement.classList.add('disabled');
+                            termElement.onclick = null;
+                            defElement.onclick = null;
+                            termElement.style.opacity = '0.5';
+                            defElement.style.opacity = '0.5';
+                        }, 1000);
+                    } else {
+                        setTimeout(() => {
+                            termElement.classList.remove('incorrect', 'selected');
+                            defElement.classList.remove('incorrect', 'selected');
+                        }, 1000);
+                    }
                 }
                 
                 gameState.selectedTerm = null;
@@ -1326,8 +1368,11 @@
             showAnswers();
             showScreen('resultsScreen');
             
-            // Hide the game completion message
-            document.querySelector('.final-score').style.display = 'none';
+            // Hide the game completion message when viewing leaderboard from home
+            const finalScoreDiv = document.querySelector('.final-score');
+            if (finalScoreDiv) {
+                finalScoreDiv.style.display = 'none';
+            }
         }
         
         function saveResults() {
